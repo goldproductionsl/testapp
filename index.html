@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Production Tracker</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#faf8f3;--card:#fff;--ink:#2a2418;--mut:#7a705c;--line:#e6dfcf;--acc:#b8860b;--good:#2e7d32;--bad:#c62828;--in:#f5f1e6;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#17140d;--card:#221e14;--ink:#f1ead8;--mut:#a59b83;--line:#3a3322;--acc:#e0b13a;--good:#6fcf76;--bad:#ff7b72;--in:#2d281a;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#17140d;--card:#221e14;--ink:#f1ead8;--mut:#a59b83;--line:#3a3322;--acc:#e0b13a;--good:#6fcf76;--bad:#ff7b72;--in:#2d281a;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+.wrap{max-width:1100px;margin:0 auto;padding:16px}
+h1{font-size:22px;margin:0}h2{font-size:14px;margin:0 0 10px;text-transform:uppercase;letter-spacing:.06em;color:var(--acc);display:flex;justify-content:space-between;align-items:center}
+button.sm{padding:2px 10px;font-size:12px;text-transform:none;letter-spacing:0}
+.top{display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center;margin-bottom:14px}
+button{background:var(--acc);color:#fff;border:0;border-radius:8px;padding:8px 14px;font:inherit;cursor:pointer}
+button.alt{background:transparent;color:var(--ink);border:1px solid var(--line)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.kpi,.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px}
+.kpi small{color:var(--mut);display:block}.kpi b{font-size:20px}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:12px}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:3px 0}
+.row label{color:var(--mut);flex:1}
+input{width:110px;background:var(--in);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:5px 7px;font:inherit;text-align:right}
+input.t{width:100%;text-align:left}
+.bal{margin-top:8px;padding-top:8px;border-top:1px dashed var(--line);display:flex;justify-content:space-between;font-weight:600}
+.pos{color:var(--good)}.neg{color:var(--bad)}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%}td,th{padding:4px 6px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{color:var(--mut);font-weight:500}td:first-child,th:first-child{text-align:left}
+.two{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+select{background:var(--in);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:4px;font:inherit}
+input[type=checkbox]{width:auto;vertical-align:middle}
+.navcard{text-align:left;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:12px;padding:18px;cursor:pointer;display:block;width:100%}
+.navcard:hover{border-color:var(--acc)}
+.navcard b{display:block;font-size:16px;margin-bottom:4px}
+.navcard span{color:var(--mut);font-size:13px}
+.sub{color:var(--mut);font-size:12px;margin:8px 0 2px}
+[hidden]{display:none!important}
+@media print{button{display:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+ <div id="vBatch" hidden><div class="top"><div><h1 id="ttl">Production Batch Tracker</h1><div style="color:var(--mut)">Gold chain batch: melting → wire → machine → polish → faceting → finishing</div></div>
+ <div><span id="who" class="sub" style="margin-right:8px"></span><button class="alt" onclick="go('home')">☰ Menu</button> <button class="alt" onclick="go('dashboard')">Dashboard</button> <button class="alt" id="navUsers" hidden onclick="go('users')">Users</button> <button class="alt" onclick="go('records')">Records</button> <button class="alt authbtn" hidden onclick="go('account')">Account</button> <button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button> <button class="alt" onclick="resetAll()">Reset to M01</button> <button id="saveBtn" onclick="saveNow()">Save</button> <button class="alt" onclick="window.print()">Print</button></div></div>
+ <div id="msg" class="sub"></div><div class="kpis" id="kpis"></div>
+ <div class="grid" id="inputs"></div>
+ <div class="grid" style="margin-top:12px">
+  <div class="card"><h2>Stage balance (short / scrap)</h2><div class="tw"><table id="stages"></table></div></div>
+  <div class="card"><h2>Fine-gold reconciliation</h2><div class="tw"><table id="fine"></table></div></div>
+  <div class="card"><h2>Valuation</h2><div class="tw"><table id="val"></table></div></div>
+  <div class="card"><h2><span>Touch calculator</span><button class="alt sm" onclick="clearTc()">Clear</button></h2><div class="tw"><table id="tc"></table></div><div class="bal"><span>Average touch</span><span id="tcr">–</span></div></div>
+ </div>
+</div>
+<div id="vHome" hidden>
+ <div class="top"><div><h1>Production Tracker</h1><div style="color:var(--mut)" id="hwho"></div></div><div><button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button></div></div>
+ <div class="grid" id="hcards"></div>
+</div>
+<div id="vDash" hidden>
+ <div class="top"><div><h1>Dashboard</h1><div style="color:var(--mut)" id="dcount"></div></div><div><button class="alt" onclick="go('home')">☰ Menu</button> <button class="alt" onclick="go('batch')">← Batch</button> <button class="alt" onclick="go('records')">Records</button> <button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button></div></div>
+ <div class="card" style="margin-bottom:12px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><label style="color:var(--mut)">From <input id="df" type="date" style="width:140px" oninput="renderDash()"></label><label style="color:var(--mut)">To <input id="dt" type="date" style="width:140px" oninput="renderDash()"></label></div></div>
+ <div class="kpis" id="dk"></div>
+ <div class="grid"><div class="card"><h2>Finished chain per sheet (g)</h2><div id="dc1"></div></div><div class="card"><h2>Short per sheet (g)</h2><div id="dc2"></div></div></div>
+ <div class="grid" style="margin-top:12px"><div class="card"><h2>By month</h2><div class="tw"><table id="dmo"></table></div></div><div class="card"><h2>By person</h2><div class="tw"><table id="dus"></table></div></div><div class="card"><h2>Recently saved</h2><div class="tw"><table id="dre"></table></div></div></div>
+</div>
+<div id="vLogin" hidden><div class="card" style="max-width:360px;margin:40px auto"><h2>Login</h2>
+ <div class="row"><label>Username</label><input id="lu" class="t" style="width:170px" type="text" autocomplete="username" onkeydown="if(event.key==='Enter')$('lp').focus()"></div>
+ <div class="row"><label>Password</label><input id="lp" class="t" style="width:170px" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')login()"></div>
+ <div class="row" style="justify-content:flex-end"><button onclick="login()">Login</button></div><div id="lerr" class="sub neg"></div></div></div>
+<div id="vAcct" hidden>
+ <div class="top"><div><h1>My account</h1><div id="acctinfo" style="color:var(--mut)"></div></div><div><button class="alt" onclick="go('home')">☰ Menu</button> <button class="alt" onclick="go('batch')">← Batch</button> <button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button></div></div>
+ <div id="amsg" class="sub"></div>
+ <div class="card" style="max-width:420px"><h2>Change password</h2>
+  <div class="row"><label>Current</label><input id="cp" type="password"></div><div class="row"><label>New</label><input id="np1" type="password"></div><div class="row"><label>Repeat new</label><input id="np2" type="password"></div>
+  <div class="row" style="justify-content:flex-end"><button onclick="changePw()">Change password</button></div></div>
+</div>
+<div id="vUsers" hidden>
+ <div class="top"><div><h1>Users &amp; activity</h1><div style="color:var(--mut)">Create users, set their permissions, reset passwords.</div></div><div><button class="alt" onclick="go('home')">☰ Menu</button> <button class="alt" onclick="go('batch')">← Batch</button> <button class="alt" onclick="go('records')">Records</button> <button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button></div></div>
+ <div id="umsg" class="sub"></div>
+ <div class="card"><h2>Create user</h2>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center"><input id="nu" class="t" style="width:140px" placeholder="username"><input id="nn" class="t" style="width:150px" placeholder="display name"><input id="npw" class="t" style="width:140px" type="text" placeholder="password (min 6)"><select id="nr"><option value="user">User</option><option value="admin">Admin</option></select></div>
+  <div style="margin-top:8px"><label style="margin-right:10px"><input type="checkbox" id="np_add" checked> Add sheets</label><label style="margin-right:10px"><input type="checkbox" id="np_edit" checked> Edit unlocked</label><label style="margin-right:10px"><input type="checkbox" id="np_del" > Delete</label><label style="margin-right:10px"><input type="checkbox" id="np_exp" checked> Excel</label><button style="margin-left:8px" onclick="createUser()">Create user</button></div></div>
+ <div class="card" style="margin-top:12px"><h2>Users</h2><div class="tw"><table id="utab"></table></div></div>
+ <div class="card" style="margin-top:12px"><h2>Activity log (who saved or edited)</h2><div class="tw"><table id="logtab"></table></div></div>
+</div>
+<div id="vRec" hidden>
+ <div class="top"><div><h1>Saved Production Records</h1><div style="color:var(--mut)" id="rcount"></div></div><div><button class="alt" onclick="go('home')">☰ Menu</button> <button class="alt" onclick="go('batch')">← Batch</button> <button class="alt authbtn" hidden onclick="switchUser()">Switch user</button> <button class="alt authbtn" hidden onclick="logout()">Logout</button> <button id="expBtn" onclick="exportXlsx()">Download Excel</button></div></div>
+ <div id="rmsg" class="sub"></div>
+ <div class="card" style="margin-bottom:12px"><div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center"><input id="rq" class="t" style="width:200px" placeholder="Melting No / order" oninput="renderRecs()"><label style="color:var(--mut)">From <input id="rf" type="date" style="width:140px" oninput="renderRecs()"></label><label style="color:var(--mut)">To <input id="rt" type="date" style="width:140px" oninput="renderRecs()"></label></div></div>
+ <div class="card"><div class="tw"><table id="recs"></table></div></div>
+</div>
+</div>
+<script>
+/* Standalone mode: when not running inside Claude, provide a small browser-storage database and file download so the app works from any PC. */
+(function(){
+ if(window.claude)return;
+ const K="ptracker_db_";
+ const rd=n=>{try{return JSON.parse(localStorage.getItem(K+n)||"{}")}catch(e){return{}}};
+ const wr=(n,o)=>localStorage.setItem(K+n,JSON.stringify(o));
+ const ref=(c,id)=>({
+  get:async()=>{const o=rd(c);return{id,exists:id in o,data:()=>o[id]}},
+  set:async d=>{const o=rd(c);o[id]=JSON.parse(JSON.stringify(d));wr(c,o)},
+  delete:async()=>{const o=rd(c);delete o[id];wr(c,o)}});
+ const col=c=>{let ord=null,lim=1e9;const q={
+  doc:id=>ref(c,id),
+  add:async d=>{const id="k"+Date.now()+Math.random().toString(36).slice(2,7);await ref(c,id).set(d);return ref(c,id)},
+  orderBy:(f,d)=>{ord=[f,d||"asc"];return q},limit:n=>{lim=n;return q},
+  get:async()=>{const o=rd(c);let docs=Object.keys(o).map(id=>({id,exists:true,data:()=>o[id]}));
+   if(ord)docs.sort((a,b)=>{const x=a.data()[ord[0]],y=b.data()[ord[0]];return(x>y?1:x<y?-1:0)*(ord[1]==="desc"?-1:1)});
+   docs=docs.slice(0,lim);return{docs,size:docs.length,empty:!docs.length}}};return q};
+ const dl={save:async({filename,data})=>{const b=data instanceof Blob?data:new Blob([data]);const a=document.createElement("a");a.href=URL.createObjectURL(b);a.download=filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),2000);return{status:"saved"}}};
+ window.claude={use:async n=>n==="db"?{collection:col}:n==="downloads"?dl:null};
+})();
+</script>
+<script>
+const DEF={order:"22k sp trial",mno:"M01",date:"2024-11-01",lc:1300,rate:198000,alloyRate:230,
+moose:36.63,alloy:3.33,abn:0,a1n:"Add Bar 1",a1c:"",a1w:0,a1t:0,a2n:"Add Bar 2",a2c:"",a2w:0,a2t:0,a3n:"Add Bar 3",a3c:"",a3w:0,a3t:0,a4n:"Add Bar 4",a4c:"",a4w:0,a4t:0,mbar:39.27,mscrap:0.67,
+adAlloy:0,wire:39.14,wscrap:0.06,chain:39.14,cscrap:0,
+pchain:39.14,pscrap:0,pKin:0,pKret:0,kdmT:0,fKin:0,fKret:0,fchain:39.14,fscrap:0,fpowder:0,
+fin:39.14,dmg:0,hGold:0.0001,hAlloy:0,hAd:0,hAdT:24,hIn:0,hBar:0,hScrap:0.0001,hkName:"Hook / clip",hkComment:"",hkTouch:"",
+chainT:"",
+tc:[[0,0],[0,0],[0,0],[0,0],[0,0]]};
+const KEY="m01_batch_v1";let S=load();
+function load(){try{const j=localStorage.getItem(KEY);if(j)return Object.assign(structuredClone(DEF),JSON.parse(j))}catch(e){}return structuredClone(DEF)}
+let LAST={},DB=null,ACC={},REC=[],ROLE="admin",RO=false,ME={id:"local",name:"You",perms:{add:1,edit:1,del:1,exp:1}};
+const LS=(k,d)=>{try{return JSON.parse(localStorage.getItem(k)||d)}catch(e){return JSON.parse(d)}};
+const P=k=>ROLE==="admin"||!!(ME.perms&&ME.perms[k]);
+const rkey=()=>"b~"+String(S.mno||"batch").replace(/[^A-Za-z0-9_.@+-]/g,"_")+"~"+(S.date||today());
+const cmp=(a,b)=>(b.date||"").localeCompare(a.date||"")||(a.mno||"").localeCompare(b.mno||"",undefined,{numeric:true});
+const fdt=v=>v?new Date(v).toLocaleString():"";
+const $=id=>document.getElementById(id);
+function msg(t){["msg","umsg","rmsg","amsg"].forEach(i=>{const e=$(i);if(e)e.textContent=t||""})}
+const nameOf=(nm,id)=>!id?"–":id==="local"?"You":ACC[id]?(ACC[id].name||id):/^u_/.test(id)?"Earlier user":id;
+async function names(){return {}}
+const sha=async s=>[...new Uint8Array(await crypto.subtle.digest("SHA-256",new TextEncoder().encode(s)))].map(x=>x.toString(16).padStart(2,"0")).join("");
+const rnd=()=>[...crypto.getRandomValues(new Uint8Array(12))].map(x=>x.toString(16).padStart(2,"0")).join("");
+async function mkAcc(pw,extra){const salt=rnd();return Object.assign({salt,hash:await sha(salt+pw)},extra)}
+const sGet=()=>{try{return sessionStorage.getItem("m01_sess")||""}catch(e){return ""}};
+const sSet=v=>{try{v?sessionStorage.setItem("m01_sess",v):sessionStorage.removeItem("m01_sess")}catch(e){}};
+async function loadAcc(){ACC={};const q=await DB.collection("accounts").get();q.docs.forEach(x=>{ACC[x.id]=x.data()})}
+function setMe(u){const a=ACC[u];ME={id:u,name:a.name||u,perms:a.perms||{}};ROLE=a.role==="admin"?"admin":"user"}
+async function initStore(){
+ try{
+  if(!window.claude||!claude.use)return;
+  const d=await claude.use("db");
+  if(d){
+   DB=d;ROLE=null;ME={id:null,name:"",perms:{}};await loadAcc();
+   if(!Object.keys(ACC).length){const a=await mkAcc("admin123",{name:"Admin",role:"admin",perms:{add:1,edit:1,del:1,exp:1},mustChange:true,by:"system",at:Date.now()});try{await DB.collection("accounts").doc("admin").set(a);ACC.admin=a}catch(e){}}
+   const [u,h]=sGet().split(":");if(u&&ACC[u]&&ACC[u].hash===h)setMe(u)
+  }
+ }catch(e){}
+ applyRole();
+}
+function applyRole(){
+ const li=!DB||!!ME.id;
+ ["navUsers"].forEach(i=>{const e=$(i);if(e)e.hidden=!(DB&&ROLE==="admin"&&li)});
+ document.querySelectorAll(".authbtn").forEach(e=>{e.hidden=!(DB&&li)});
+ const x=$("expBtn");if(x)x.hidden=!P("exp");
+ $("who").textContent=DB&&li?ME.name+" · "+(ROLE==="admin"?"Admin":"User"):"";
+}
+async function login(){
+ const u=($("lu").value||"").trim().toLowerCase(),p=$("lp").value||"",er=$("lerr");er.textContent="";
+ if(!window.crypto||!crypto.subtle){er.textContent="Login is not available in this browser.";return}
+ try{await loadAcc()}catch(e){}
+ const a=ACC[u];
+ if(!a||await sha(a.salt+p)!==a.hash){er.textContent=Object.keys(ACC).length?"Wrong username or password.":"No accounts yet. The page owner must open this page first.";return}
+ setMe(u);sSet(u+":"+a.hash);$("lp").value="";applyRole();
+ await logAct("login",{});
+ if(a.mustChange){go("account");msg("Please change the default password now.")}else{go("home");route()}
+}
+function signOut(){sSet("");ME={id:null,name:"",perms:{}};ROLE=null;applyRole();msg("");$("lu").value="";$("lp").value="";$("lerr").textContent="";go("home");route()}
+function logout(){S=structuredClone(DEF);RO=false;try{localStorage.removeItem(KEY)}catch(e){}build();calc();signOut();$("lerr").textContent="You have been logged out."}
+function switchUser(){RO=false;build();calc();signOut();$("lerr").textContent="Switch user: sign in with another account. Your unsaved entries are kept.";setTimeout(()=>$("lu").focus(),50)}
+async function changePw(){
+ const a=ACC[ME.id];if(!a)return;const c=$("cp").value,n1=$("np1").value,n2=$("np2").value;
+ if(await sha(a.salt+c)!==a.hash){msg("Current password is wrong.");return}
+ if(n1.length<6){msg("New password must be at least 6 characters.");return}
+ if(n1!==n2){msg("The new passwords do not match.");return}
+ const b=await mkAcc(n1,Object.assign({},a,{mustChange:false}));
+ try{await DB.collection("accounts").doc(ME.id).set(b);ACC[ME.id]=b;sSet(ME.id+":"+b.hash);await logAct("password-changed",{});["cp","np1","np2"].forEach(i=>$(i).value="");msg("Password changed.")}catch(e){msg("Could not change the password.")}
+}
+function applyRO(){if(RO)document.querySelectorAll("#vBatch input,#vBatch .card button").forEach(e=>{e.disabled=true});const b=$("saveBtn");if(b)b.disabled=RO}
+async function loadRecs(){
+ if(DB){try{const q=await DB.collection("batches").get();REC=q.docs.map(x=>Object.assign({id:x.id},x.data()));return}catch(e){}}
+ REC=LS("m01_records","[]");
+}
+async function putRec(r){
+ if(DB){try{await DB.collection("batches").doc(r.id).set(r);return"cloud"}catch(e){return"fail"}}
+ const a=LS("m01_records","[]").filter(x=>x.id!==r.id);a.push(r);try{localStorage.setItem("m01_records",JSON.stringify(a))}catch(e){}return"local";
+}
+async function logAct(action,info){
+ const e=Object.assign({action,by:ME.id||"local",at:Date.now()},info||{});
+ if(DB){try{await DB.collection("log").add(e)}catch(x){}}else{const a=LS("m01_log","[]");a.push(e);try{localStorage.setItem("m01_log",JSON.stringify(a.slice(-300)))}catch(x){}}
+}
+async function saveNow(){
+ if(RO){msg("This sheet is locked (read-only). Ask an admin to unlock it for editing.");return}
+ if(!S.date)S.date=today();
+ await loadRecs();
+ const id=rkey(),old=REC.find(x=>x.id===id),now=Date.now();
+ if(!old&&!P("add")){msg("You do not have permission to add new sheets.");return}
+ if(old&&!(ROLE==="admin"||(P("edit")&&old.unlocked))){msg("A sheet for "+(S.mno||"this number")+" on "+S.date+" is already saved and locked. Ask an admin to unlock it, or use a different number/date.");return}
+ const r=Object.assign({},old||{},{id,mno:String(S.mno||""),date:S.date,order:String(S.order||""),sum:LAST,data:JSON.stringify(S),lastBy:ME.id||"local",lastAt:now});
+ if(!old){r.by=ME.id||"local";r.at=now;r.unlocked=false}else if(ROLE!=="admin")r.unlocked=false;
+ try{localStorage.setItem(KEY,JSON.stringify(S))}catch(e){}
+ const where=await putRec(r);
+ if(where==="fail"){msg("Could not save. You may only have view access to this page.");return}
+ await logAct(old?"edited":"created",{batch:id,mno:r.mno,date:r.date});
+ await loadRecs();
+ const ok=P("exp")?await exportXlsx():false;
+ flash("Saved ✓");msg("Saved "+(where==="cloud"?"to the shared records":"in this browser")+(ok?" and Excel file downloaded.":"."));
+}
+async function exportXlsx(){
+ if(!P("exp")){msg("You do not have permission to download Excel.");return false}
+ if(!window.XLSX){msg("Excel library not loaded");return false}
+ let dl=null;try{dl=await claude.use("downloads")}catch(e){}
+ if(!dl){msg("Excel download is not available in this view");return false}
+ const cols=[];GROUPS.forEach(([gn,fs])=>fs.forEach(([k,l])=>{if(!["order","mno","date"].includes(k))cols.push([k,gn.replace(/^\d+\s\S\s/,"")+" - "+l])}));
+ const rows=[...REC].sort(cmp).map(r=>{let d={};try{d=JSON.parse(r.data)}catch(e){}const s=r.sum||{},n=(v,p)=>+(+v||0).toFixed(p);
+  const o={"Melting No":r.mno,"Date":r.date,"Order":r.order,"Created by":nameOf(0,r.by),"Created at":fdt(r.at),"Last edited by":nameOf(0,r.lastBy),"Last edited at":fdt(r.lastAt),"Total input (g)":n(s.inp,4),"Finished chain (g)":n(s.fin,4),"Total short (g)":n(s.short,4),"Yield %":n(s.yld,2),"Melt touch (K)":n(s.meltT,3),"Wire touch (K)":n(s.wireT,3),"Batch rate /8g":n(s.brate,0),"Net result":n(s.net,0)};
+  cols.forEach(([k,h])=>{o[h]=d[k]===undefined?"":d[k]});return o});
+ const wb=XLSX.utils.book_new();XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows),"Production");
+ try{await dl.save({filename:"production_records.xlsx",data:XLSX.write(wb,{type:"array",bookType:"xlsx"}),request:"Save production records as an Excel file"});return true}catch(e){msg(e&&e.code==="declined"?"Excel download declined":"Excel download failed");return false}
+}
+function resetAll(){S=structuredClone(DEF);RO=false;try{localStorage.removeItem(KEY)}catch(e){}msg("");build();calc()}
+function flash(t){const b=$("saveBtn");b.textContent=t;setTimeout(()=>b.textContent="Save",1400)}
+function go(v){location.hash=v}
+async function route(){
+ const h=location.hash.replace("#","")||"home";
+ let view=(["home","batch","records","users","account","dashboard"].includes(h)?h:"home");
+ if(DB&&!ME.id)view="login";else if(view==="users"&&ROLE!=="admin")view="home";else if(view==="account"&&!DB)view="home";
+ [["home","vHome"],["dashboard","vDash"],["batch","vBatch"],["records","vRec"],["users","vUsers"],["account","vAcct"],["login","vLogin"]].forEach(([k,id])=>{$(id).hidden=view!==k});
+ if(view==="home")renderHome();
+ if(view==="dashboard")renderDash();
+ if(view==="records"){await loadRecs();renderRecs()}
+ if(view==="users")renderUsers();
+ if(view==="account")$("acctinfo").textContent=ME.name+" ("+ME.id+")";
+}
+window.addEventListener("hashchange",route);
+const canEditRec=r=>ROLE==="admin"||(P("edit")&&!!r.unlocked);
+async function renderRecs(){
+ const q=($("rq").value||"").toLowerCase(),a=$("rf").value,b=$("rt").value;
+ const L=REC.filter(r=>(!q||((r.mno||"")+" "+(r.order||"")).toLowerCase().includes(q))&&(!a||r.date>=a)&&(!b||r.date<=b)).sort(cmp),adm=ROLE==="admin";
+ $("recs").innerHTML="<tr><th>Melting No</th><th>Date</th><th>Order</th><th>Finished g</th><th>Short g</th><th>Net</th><th>Created by</th><th>Last edited by</th><th>Status</th><th></th></tr>"+(L.length?L.map(r=>{const s=r.sum||{};return `<tr><td>${esc(r.mno)}</td><td>${esc(r.date)}</td><td>${esc(r.order)}</td><td>${f(s.fin||0,2)}</td><td class="${cls(s.short||0)}">${f(s.short||0,3)}</td><td>${m(s.net||0)}</td><td>${esc(nameOf(0,r.by))}</td><td>${esc(nameOf(0,r.lastBy))}<div class="sub" style="margin:0">${esc(fdt(r.lastAt))}</div></td><td>${r.unlocked?"✎ Unlocked":"🔒 Locked"}</td><td><button class="alt sm" onclick="openRec('${r.id}')">${canEditRec(r)?"Open":"View"}</button>${adm?` <button class="alt sm" onclick="toggleLock('${r.id}')">${r.unlocked?"Lock":"Unlock"}</button>`:""}${P("del")?` <button class="alt sm" onclick="delRec('${r.id}')">Delete</button>`:""}</td></tr>`}).join(""):"<tr><td colspan=10 style='text-align:center;color:var(--mut)'>No saved records yet</td></tr>");
+ $("rcount").textContent=L.length+" record(s)"+(DB?" · shared":" · this browser only");
+}
+function openRec(id){const r=REC.find(x=>x.id===id);if(!r)return;try{S=Object.assign(structuredClone(DEF),JSON.parse(r.data))}catch(e){return}
+ RO=!canEditRec(r);build();calc();go("batch");msg(RO?"Viewing a locked sheet (read-only). An admin can unlock it for editing.":ROLE==="admin"?"":"Editing an unlocked sheet. It locks again after you save.")}
+async function setRec(r){if(DB)await DB.collection("batches").doc(r.id).set(r);else{const a=LS("m01_records","[]").filter(x=>x.id!==r.id);a.push(r);localStorage.setItem("m01_records",JSON.stringify(a))}}
+async function toggleLock(id){if(ROLE!=="admin")return;const r=REC.find(x=>x.id===id);if(!r)return;r.unlocked=!r.unlocked;try{await setRec(r);await logAct(r.unlocked?"unlocked":"locked",{batch:id,mno:r.mno,date:r.date})}catch(e){}await loadRecs();renderRecs()}
+async function delRec(id){if(!P("del"))return;const r=REC.find(x=>x.id===id)||{};try{if(DB)await DB.collection("batches").doc(id).delete();else localStorage.setItem("m01_records",JSON.stringify(REC.filter(x=>x.id!==id)));await logAct("deleted",{batch:id,mno:r.mno||"",date:r.date||""})}catch(e){}await loadRecs();renderRecs()}
+function renderHome(){
+ $("hwho").textContent=DB?"Signed in as "+ME.name+" ("+(ROLE==="admin"?"Admin":"User")+")":"Local mode (this browser only)";
+ const I=[["batch","📝","Batch entry","Enter or edit a production sheet: melting to finishing.",true],["records","📚","Saved records","Search saved sheets by number and date, open them, download Excel.",true],["dashboard","📊","Dashboard","Totals, yield, short and trends across saved sheets.",true],["users","👥","Users & permissions","Create users, set permissions, unlock sheets, view activity.",!!DB&&ROLE==="admin"],["account","🔑","My account","Change your password.",!!DB]];
+ $("hcards").innerHTML=I.filter(x=>x[4]).map(([k,ic,t,d])=>`<button class="navcard" onclick="go('${k}')"><b>${ic} ${t}</b><span>${d}</span></button>`).join("");
+}
+function barSvg(items,col,dp){
+ if(!items.length)return '<div class="sub">No data yet</div>';
+ const bw=44,W=Math.max(300,items.length*bw+30),H=200,base=H-34,top=18,neg=items.some(i=>i.v<0),span=base-top,zero=neg?top+span/2:base,mx=Math.max(...items.map(i=>Math.abs(i.v)),1e-9),sc=(neg?span/2:span)/mx;
+ let s=`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" role="img"><line x1="10" x2="${W-10}" y1="${zero}" y2="${zero}" style="stroke:var(--line)"/>`;
+ items.forEach((it,i)=>{const x=18+i*bw,h=Math.abs(it.v)*sc,y=it.v>=0?zero-h:zero,ty=it.v>=0?y-4:y+h+11;
+  s+=`<g><title>${esc(it.t)}: ${f(it.v,dp)}</title><rect x="${x}" y="${y}" width="28" height="${Math.max(h,1)}" rx="3" style="fill:${col(it.v)}"/><text x="${x+14}" y="${ty}" text-anchor="middle" font-size="10" style="fill:var(--ink)">${f(it.v,dp)}</text><text x="${x+14}" y="${H-14}" text-anchor="middle" font-size="10" style="fill:var(--mut)">${esc(String(it.l).slice(0,6))}</text></g>`});
+ return '<div class="tw">'+s+'</svg></div>';
+}
+const tbl=(h,rows)=>"<tr>"+h.map(x=>`<th>${x}</th>`).join("")+"</tr>"+(rows.length?rows.map(r=>"<tr>"+r.map(c=>`<td>${c}</td>`).join("")+"</tr>").join(""):`<tr><td colspan=${h.length} style="text-align:center;color:var(--mut)">No data</td></tr>`);
+async function renderDash(){
+ await loadRecs();
+ const a=$("df").value,b=$("dt").value,g0=r=>r.sum||{};
+ const L=REC.filter(r=>(!a||r.date>=a)&&(!b||r.date<=b)).sort((x,y)=>(x.date||"").localeCompare(y.date||""));
+ const sum=(k,A=L)=>A.reduce((s,r)=>s+(+g0(r)[k]||0),0);
+ const inp=sum("inp"),fin=sum("fin"),sh=sum("short"),net=sum("net");
+ $("dcount").textContent=L.length+" sheet(s)"+(DB?" · shared records":" · this browser only");
+ $("dk").innerHTML=[["Sheets",L.length],["Total input",f(inp,2)+" g"],["Finished chain",f(fin,2)+" g"],["Total short",f(sh,3)+" g"],["Yield",f(inp?fin/inp*100:0,1)+"%"],["Avg melt touch",f(L.length?sum("meltT")/L.length:0,2)+" K"],["Net result",m(net)],["Unlocked sheets",L.filter(r=>r.unlocked).length]].map(([k,v])=>`<div class="kpi"><small>${k}</small><b>${v}</b></div>`).join("");
+ const last=L.slice(-12);
+ $("dc1").innerHTML=barSvg(last.map(r=>({l:r.mno,t:r.mno+" "+r.date,v:+g0(r).fin||0})),()=>"var(--acc)",2);
+ $("dc2").innerHTML=barSvg(last.map(r=>({l:r.mno,t:r.mno+" "+r.date,v:+g0(r).short||0})),v=>v<0?"var(--bad)":"var(--good)",3);
+ const mo={},us={};L.forEach(r=>{const k=(r.date||"").slice(0,7);(mo[k]=mo[k]||[]).push(r);(us[r.by||"local"]=us[r.by||"local"]||[]).push(r)});
+ $("dmo").innerHTML=tbl(["Month","Sheets","Finished g","Short g","Net"],Object.keys(mo).sort().reverse().map(k=>[esc(k),mo[k].length,f(sum("fin",mo[k]),2),f(sum("short",mo[k]),3),m(sum("net",mo[k]))]));
+ $("dus").innerHTML=tbl(["Person","Sheets","Finished g"],Object.keys(us).map(k=>[esc(nameOf(0,k)),us[k].length,f(sum("fin",us[k]),2)]));
+ $("dre").innerHTML=tbl(["No","Date","Last edited by","When"],[...L].sort((x,y)=>(y.lastAt||0)-(x.lastAt||0)).slice(0,8).map(r=>[esc(r.mno),esc(r.date),esc(nameOf(0,r.lastBy)),esc(fdt(r.lastAt))]));
+}
+const PERMS=[["add","Add sheets"],["edit","Edit unlocked"],["del","Delete"],["exp","Excel"]];
+async function renderUsers(){
+ try{await loadAcc()}catch(e){}
+ const ids=Object.keys(ACC).sort();
+ $("utab").innerHTML="<tr><th>Name</th><th>Username</th><th>Role</th><th>Permissions</th><th>New password</th><th></th></tr>"+ids.map(i=>{const u=ACC[i],ad=u.role==="admin";return `<tr><td>${esc(u.name||i)}${i===ME.id?" (you)":""}</td><td>${esc(i)}</td><td><select onchange="setRole('${i}',this.value)"><option value="admin"${ad?" selected":""}>Admin</option><option value="user"${ad?"":" selected"}>User</option></select></td><td style="text-align:left">${ad?"All":PERMS.map(([k,l])=>`<label style="margin-right:8px"><input type="checkbox" ${u.perms&&u.perms[k]?"checked":""} onchange="setPerm('${i}','${k}',this.checked)"> ${l}</label>`).join("")}</td><td><input id="rp_${i}" type="text" style="width:110px" placeholder="min 6 chars"> <button class="alt sm" onclick="resetPw('${i}')">Set</button></td><td>${i===ME.id?"":`<button class="alt sm" onclick="rmUser('${i}')">Remove</button>`}</td></tr>`}).join("");
+ renderLog();
+}
+const adminCount=()=>Object.values(ACC).filter(u=>u.role==="admin").length;
+async function putAcc(i,a){await DB.collection("accounts").doc(i).set(a);ACC[i]=a}
+async function setRole(i,role){
+ if(ROLE!=="admin")return;
+ if(role!=="admin"&&ACC[i].role==="admin"&&adminCount()<2){msg("There must be at least one admin.");return renderUsers()}
+ try{await putAcc(i,Object.assign({},ACC[i],{role}));await logAct("role-changed",{target:i,detail:role})}catch(e){msg("Could not change the role.")}
+ if(i===ME.id){setMe(i);applyRole();route()}renderUsers();
+}
+async function setPerm(i,k,v){
+ if(ROLE!=="admin")return;
+ const a=Object.assign({},ACC[i]);a.perms=Object.assign({},a.perms,{[k]:v?1:0});
+ try{await putAcc(i,a);await logAct("perm-changed",{target:i,detail:k+(v?" on":" off")})}catch(e){msg("Could not change the permission.")}
+}
+async function resetPw(i){
+ if(ROLE!=="admin")return;const e=$("rp_"+i),p=(e&&e.value)||"";
+ if(p.length<6){msg("Password must be at least 6 characters.");return}
+ try{await putAcc(i,await mkAcc(p,Object.assign({},ACC[i],{mustChange:true})));await logAct("password-reset",{target:i});msg("Password reset for "+i+". They will be asked to change it at next login.")}catch(x){msg("Could not reset the password.")}
+ renderUsers();
+}
+async function rmUser(i){
+ if(ROLE!=="admin"||i===ME.id)return;
+ if(ACC[i].role==="admin"&&adminCount()<2){msg("There must be at least one admin.");return}
+ try{await DB.collection("accounts").doc(i).delete();delete ACC[i];await logAct("user-removed",{target:i})}catch(e){msg("Could not remove the user.")}
+ renderUsers();
+}
+async function createUser(){
+ if(ROLE!=="admin")return;
+ const u=($("nu").value||"").trim().toLowerCase(),n=($("nn").value||"").trim(),p=$("npw").value||"",role=$("nr").value;
+ if(!/^[a-z0-9_.-]{2,30}$/.test(u)||/^\.+$/.test(u)){msg("Username: 2-30 letters, numbers, . _ - only.");return}
+ if(ACC[u]){msg("That username already exists.");return}
+ if(p.length<6){msg("Password must be at least 6 characters.");return}
+ const perms={};PERMS.forEach(([k])=>{perms[k]=$("np_"+k).checked?1:0});
+ try{await putAcc(u,await mkAcc(p,{name:n||u,role,perms,mustChange:true,by:ME.id,at:Date.now()}));await logAct("user-added",{target:u,detail:role});["nu","nn","npw"].forEach(i=>$(i).value="");msg("User "+u+" created. They will be asked to change the password at first login.")}catch(e){msg("Could not create the user (needs Contributor access to this page).")}
+ renderUsers();
+}
+async function renderLog(){
+ let L=[];if(DB){try{const q=await DB.collection("log").orderBy("at","desc").limit(100).get();L=q.docs.map(x=>x.data())}catch(e){}}else L=LS("m01_log","[]").reverse();
+ const lab={created:"saved a new sheet",edited:"edited a sheet",deleted:"deleted a sheet",unlocked:"unlocked a sheet",locked:"locked a sheet","user-added":"created a user","user-removed":"removed a user","role-changed":"changed a role","perm-changed":"changed a permission","password-reset":"reset a password","password-changed":"changed own password",login:"logged in"};
+ $("logtab").innerHTML="<tr><th>When</th><th>Who</th><th>Action</th><th>Details</th></tr>"+(L.length?L.map(x=>`<tr><td>${esc(fdt(x.at))}</td><td>${esc(nameOf(0,x.by))}</td><td>${esc(lab[x.action]||x.action)}</td><td>${esc(x.mno?x.mno+" · "+x.date:x.target?nameOf(0,x.target)+(x.detail?" → "+x.detail:""):"")}</td></tr>`).join(""):"<tr><td colspan=4 style='text-align:center;color:var(--mut)'>No activity yet</td></tr>");
+}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const N=v=>parseFloat(v)||0,f=(v,d=4)=>(+v).toLocaleString(undefined,{minimumFractionDigits:d,maximumFractionDigits:d}),m=v=>(v<0?"−":"")+"Rs "+Math.abs(v).toLocaleString(undefined,{maximumFractionDigits:0}),cls=v=>Math.abs(v)<1e-9?"":v>0?"pos":"neg";
+
+const GROUPS=[
+["Batch",[["order","Order","t"],["mno","Melting No","t"],["date","Date","d"],["lc","Labour charge (per 8g)"],["rate","Gold rate 24K (per 8g)"],["alloyRate","Alloy rate (per g)"]]],
+["1 · Melting",[["moose","Pure gold (Moose)"],["alloy","Alloy"],["a1n","Add Bar 1 name","t"],["a1w","↳ weight"],["a1t","↳ touch"],["a1c","↳ comment","t"],["a2n","Add Bar 2 name","t"],["a2w","↳ weight"],["a2t","↳ touch"],["a2c","↳ comment","t"],["a3n","Add Bar 3 name","t"],["a3w","↳ weight"],["a3t","↳ touch"],["a3c","↳ comment","t"],["a4n","Add Bar 4 name","t"],["a4w","↳ weight"],["a4t","↳ touch"],["a4c","↳ comment","t"],["mbar","Bar produced (M bar)"],["mscrap","Melting scrap"]]],
+["2 · Wiredrawing",[["adAlloy","Added alloy"],["wire","Wire out"],["wscrap","Wire scrap"]]],
+["3 · Machine section",[["chain","Chain out"],["cscrap","Scrap"]]],
+["4 · Polishing",[["pKin","KDM added"],["pchain","Chain out"],["pKret","KDM returned"],["pscrap","Scrap"],["kdmT","KDM touch (gold content)"]]],
+["5 · Faceting",[["fchain","Chain out"],["fscrap","Scrap"],["fpowder","Powder"]]],
+["6 · Finishing",[["fin","Finished chain"],["fKin","KDM added"],["fKret","KDM returned"],["dmg","Damaged chain"],["chainT","Chain touch (blank = auto from wiredrawing)"]]],
+["7 · Hook / clip",[["hkName","Section name","t"],["hkComment","Comment","t"],["hGold","Hook gold"],["hAlloy","Hook alloy"],["hAd","Hook add bar"],["hAdT","Add bar touch"],["hkTouch","Touch (blank = auto from hook gold / alloy / add bar)"],["hIn","Brought forward"],["hBar","Hook / clip total"],["hScrap","Hook scrap"]]]];
+
+function build(){fixAbn();
+ const el=document.getElementById("inputs");el.innerHTML="";
+ GROUPS.forEach(([t,fs],gi)=>{const c=document.createElement("div");c.className="card";
+  c.innerHTML="<h2><span id=\"gt"+gi+"\">"+(gi===7&&S.hkName?esc(S.hkName):t)+"</span><button class=\"alt sm\" onclick=\"clearGroup("+gi+")\">Clear</button></h2>"+(gi===1?fs.filter(([k])=>{const q=/^a(\d)[nwtc]$/.exec(k);return !q||+q[1]<=S.abn}):fs).map(([k,l,ty])=>`<div class="row"><label for="${k}">${l}</label><input id="${k}" data-k="${k}" ${ty==="t"?'class="t" style="width:140px" type="text"':ty==="d"?'type="date" style="width:140px"':'type="number" step="any"'} value="${esc(S[k])}"></div>`).join("")+(gi===1?'<div class="row" style="justify-content:flex-start;gap:8px;margin-top:6px"><button class="alt sm" onclick="addBar()"'+(S.abn>=4?' disabled':'')+'>+ Add bar</button>'+(S.abn>0?'<button class="alt sm" onclick="removeBar()">− Remove last bar</button>':'')+'</div>':"")+(gi===1||gi===2?`<div class="bal"><span>Gold touch after mixing</span><span id="t${gi}">–</span></div><div class="sub" id="tn${gi}"></div>`:"")+(gi===0?'<div class="bal"><span>Batch gold rate (per 8g)</span><span id="brate">–</span></div><div class="sub" id="brn"></div>':"")+(gi===3?"<div class=\"sub\" id=\"mflow\"></div>":"")+(gi===7?"<div class=\"sub\" id=\"hktn\"></div><div class=\"sub\" id=\"hkflow\"></div>":"")+(gi>0?`<div class="bal"><span>Balance</span><span id="b${gi}">–</span></div>`:"");
+  el.appendChild(c)});
+ el.oninput=e=>{const k=e.target.dataset.k;if(!k)return;if(k==="date"&&!e.target.value)e.target.value=today();S[k]=e.target.value;if(k==="hkName")document.getElementById("gt7").textContent=S.hkName||"7 · Hook / clip";calc()};
+ document.getElementById("tc").innerHTML="<tr><th>Weight</th><th>Touch</th><th>Fine</th></tr>"+S.tc.map((r,i)=>`<tr><td><input type="number" step="any" data-tc="${i},0" value="${r[0]}"></td><td><input type="number" step="any" data-tc="${i},1" value="${r[1]}"></td><td id="tf${i}">0</td></tr>`).join("");
+ document.getElementById("tc").oninput=e=>{const d=e.target.dataset.tc;if(!d)return;const[i,j]=d.split(",").map(Number);S.tc[i][j]=e.target.value;calc()};
+}
+const today=()=>{const d=new Date();return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")};
+function fixAbn(){let mx=0;for(let i=1;i<=4;i++)if(N(S["a"+i+"w"])||N(S["a"+i+"t"])||S["a"+i+"c"])mx=i;S.abn=Math.min(4,Math.max(N(S.abn),mx))}
+function addBar(){if(N(S.abn)<4){S.abn=N(S.abn)+1;build();calc()}}
+function removeBar(){const i=N(S.abn);if(i>0){S["a"+i+"w"]=0;S["a"+i+"t"]=0;S["a"+i+"c"]="";S["a"+i+"n"]="Add Bar "+i;S.abn=i-1;build();calc()}}
+function clearGroup(gi){if(gi===1)S.abn=0;GROUPS[gi][1].forEach(([k,l,ty])=>{S[k]=ty==="d"?today():/^a\dn$/.test(k)?"Add Bar "+k[1]:ty==="t"||["chainT","hkTouch"].includes(k)?"":0});build();calc()}
+function clearTc(){S.tc=S.tc.map(()=>[0,0]);build();calc()}
+function setBal(i,v){const e=document.getElementById("b"+i);e.textContent=f(v);e.className=cls(v)}
+function calc(){
+ const g=k=>N(S[k]),ad=[1,2,3,4].map(i=>[g("a"+i+"w"),g("a"+i+"t")]);
+ document.getElementById("ttl").textContent=(S.mno||"")+" · "+(S.order||"Batch");
+ // melting + touch
+ const adFine=ad.reduce((s,[w,t])=>s+w*t/24,0),adW=ad.reduce((s,[w])=>s+w,0);
+ const mIn=g("moose")+g("alloy")+adW,mOut=g("mbar")+g("mscrap"),melt=mOut-mIn;
+ const fineIn=g("moose")+adFine,meltMetal=g("moose")+g("alloy")+adW,wireMetal=meltMetal+g("adAlloy");
+ const meltT=meltMetal?fineIn/meltMetal*24:0,wireT=wireMetal?fineIn/wireMetal*24:0,autoT=wireT;
+ document.getElementById("t1").textContent=f(meltT,3)+" K";
+ document.getElementById("tn1").textContent="Fine "+f(fineIn)+" g ÷ metal "+f(meltMetal)+" g × 24";
+ document.getElementById("t2").textContent=f(wireT,3)+" K";
+ document.getElementById("brate").textContent=m(g("rate")*meltT/24);document.getElementById("brn").textContent="24K rate "+m(g("rate"))+" × melt touch "+f(meltT,3)+" K ÷ 24";
+ document.getElementById("tn2").textContent="Fine "+f(fineIn)+" g ÷ (melt "+f(meltMetal)+" + added alloy "+f(g("adAlloy"))+") g × 24";
+ const chainT=S.chainT===""?autoT:g("chainT");
+ const wIn=g("mbar")+g("adAlloy"),wireBal=g("wire")+g("wscrap")-wIn;
+ const mchBal=g("chain")+g("cscrap")-g("wire");
+ const polBal=g("pchain")+g("pscrap")+g("pKret")-g("chain")-g("pKin");
+ const kdmNet=g("pKin")-g("pKret")+g("fKin")-g("fKret");
+ const facBal=g("fchain")+g("fscrap")+g("fpowder")-g("pchain");
+ const hkTot=g("hGold")+g("hAlloy")+g("hAd");
+ const hkAuto=hkTot?(g("hGold")+g("hAd")*g("hAdT")/24)/hkTot*24:g("hAdT"),hkT=S.hkTouch===""?hkAuto:g("hkTouch"),hkN=S.hkName||"Hook";
+ const hkScrapTot=g("hScrap")+g("hBar"),hkBf=g("hIn"),hkRem=hkBf-g("hBar"),hkShort=g("hScrap")-hkRem;
+ const finIn=g("fchain")+g("hGold")+g("hAlloy")+g("hAd");
+ const finBal=g("fin")+hkScrapTot-g("hBar")+g("dmg")+g("fKret")-g("fKin")-finIn; // out − in
+ [melt,wireBal,mchBal,polBal,facBal,finBal].forEach((v,i)=>setBal(i+1,v));
+ document.getElementById("mflow").textContent="Wire in "+f(g("wire"))+" (from Wiredrawing) → chain "+f(g("chain"))+" + scrap "+f(g("cscrap"))+" = "+f(g("chain")+g("cscrap"))+" | balance = out − in";
+ const b7=document.getElementById("b7");b7.textContent=f(hkShort);b7.className=cls(hkShort);
+ {const h=document.getElementById("hkflow");h.className="";h.innerHTML='<table><tr><td>Brought forward</td><td>'+f(hkBf)+'</td></tr><tr><td>− Hook / clip total</td><td>'+f(g("hBar"))+'</td></tr><tr><td><b>= Total</b></td><td><b>'+f(hkRem)+'</b></td></tr><tr><td>Hook scrap</td><td>'+f(g("hScrap"))+'</td></tr><tr><td><b>= Balance (Hook scrap − Total)</b></td><td class="'+cls(hkShort)+'"><b>'+f(hkShort)+'</b></td></tr></table>'}
+ document.getElementById("hktn").textContent="Auto touch "+f(hkAuto,3)+" K = (hook gold + add bar × touch ÷ 24) ÷ (gold + alloy + add bar) × 24"+(S.hkTouch===""?" — in use":" — overridden by "+f(g("hkTouch"),3)+" K");
+ // scrap
+ const scrapMain=g("mscrap")+g("cscrap")+g("pscrap")+g("fscrap")+g("dmg"),wScrap=g("wscrap");
+ const short=melt+wireBal+mchBal+polBal+facBal+finBal;
+ const stages=[["Melting",melt],["Wiredrawing",wireBal],["Machine",mchBal],["Polishing",polBal],["Faceting",facBal],["Finishing",finBal]];
+ document.getElementById("stages").innerHTML="<tr><th>Stage</th><th>Balance (g)</th><th>% of input</th></tr>"+stages.map(([n,v],i)=>`<tr><td>${n}</td><td class="${cls(v)}">${f(v)}</td><td>${f(mIn?v/mIn*100:0,2)}%</td></tr>`).join("")+`<tr><td><b>Total short</b></td><td class="${cls(short)}"><b>${f(short)}</b></td><td>${f(mIn?short/mIn*100:0,2)}%</td></tr><tr><td>${esc(hkN)} short</td><td class="${cls(hkShort)}">${f(hkShort)}</td><td></td></tr><tr><td>Process scrap</td><td>${f(scrapMain)}</td><td></td></tr><tr><td>Wire scrap</td><td>${f(wScrap)}</td><td></td></tr>`;
+ // fine gold reconciliation
+ const rate=g("rate"),pg=rate/8;
+ const fIn=g("moose")+adFine+g("hGold")+g("hAd")*g("hAdT")/24+kdmNet*g("kdmT")/24;
+ const fFin=g("fin")*chainT/24,fScr=(scrapMain-g("dmg")+wScrap+g("fpowder"))*chainT/24+g("dmg")*chainT/24,fHk=g("hScrap")*hkT/24;
+ const fOut=fFin+fScr+fHk,fDiff=fOut-fIn;
+ document.getElementById("fine").innerHTML=`<tr><td>Fine gold in</td><td>${f(fIn)}</td></tr><tr><td>Finished chain (@ ${f(chainT,2)}K)</td><td>${f(fFin)}</td></tr><tr><td>Scrap + powder (@ ${f(chainT,2)}K)</td><td>${f(fScr)}</td></tr><tr><td>Hook scrap (@ ${f(hkT,2)}K)</td><td>${f(fHk)}</td></tr><tr><td><b>Fine out</b></td><td><b>${f(fOut)}</b></td></tr><tr><td><b>Gain / (loss)</b></td><td class="${cls(fDiff)}"><b>${f(fDiff)}</b></td></tr><tr><td>Value of difference</td><td class="${cls(fDiff)}">${m(fDiff*pg)}</td></tr>`;
+ // valuation
+ const L=[["Pure gold used",-pg*g("moose")],["Alloy used",-g("alloyRate")*(g("alloy")+g("adAlloy"))]];
+ ad.forEach(([w,t],i)=>{if(w)L.push([esc(S["a"+(i+1)+"n"]||"Add Bar "+(i+1))+(S["a"+(i+1)+"c"]?" <small style=\"color:var(--mut)\">("+esc(S["a"+(i+1)+"c"])+")</small>":""),-pg*(t/24)*w])});
+ L.push([esc(hkN)+" metal used",-pg*(hkT/24)*hkTot]);
+ if(kdmNet)L.push(["KDM used (net)",-pg*(g("kdmT")/24)*kdmNet]);
+ L.push(["Finished chain",pg*(chainT/24)*g("fin")],["Scrap recovered",pg*(chainT/24)*(scrapMain-g("dmg")+wScrap)],["Powder",pg*(chainT/24)*g("fpowder")],[esc(hkN)+" scrap",pg*(hkT/24)*g("hScrap")]);
+ const sub=L.reduce((s,[,v])=>s+v,0),lab=g("lc")/8*g("fin"),net=sub+lab;LAST={inp:mIn,fin:g("fin"),short:short,yld:mIn?g("fin")/mIn*100:0,meltT:meltT,wireT:wireT,brate:g("rate")*meltT/24,net:net};
+ document.getElementById("val").innerHTML=L.map(([n,v])=>`<tr><td>${n}</td><td class="${cls(v)}">${m(v)}</td></tr>`).join("")+`<tr><td><b>Metal gain / (loss)</b></td><td class="${cls(sub)}"><b>${m(sub)}</b></td></tr><tr><td>Labour income</td><td>${m(lab)}</td></tr><tr><td><b>Net result</b></td><td class="${cls(net)}"><b>${m(net)}</b></td></tr>`;
+ // touch calc
+ let tw=0,tf=0;S.tc.forEach((r,i)=>{const fi=N(r[0])*N(r[1])/24;tw+=N(r[0]);tf+=fi;document.getElementById("tf"+i).textContent=f(fi)});
+ document.getElementById("tcr").textContent=tw?f(tf/tw*24,3)+" K":"–";
+ // KPIs
+ const K=[["Total input",f(mIn,2)+" g"],["Finished chain",f(g("fin"),2)+" g"],["Melt touch",f(meltT,2)+" K"],["Batch rate /8g",m(g("rate")*meltT/24)],["Wire touch",f(wireT,2)+" K"],["Total short",f(short,3)+" g"],["Yield",f(mIn?g("fin")/mIn*100:0,1)+"%"],["Net result",m(net)]];
+ document.getElementById("kpis").innerHTML=K.map(([a,b])=>`<div class="kpi"><small>${a}</small><b>${b}</b></div>`).join("");
+ applyRO();
+}
+document.addEventListener("keydown",e=>{
+ if(e.key!=="Enter"||e.target.tagName!=="INPUT"||!e.target.closest("#vBatch"))return;
+ e.preventDefault();
+ const all=[...document.querySelectorAll("#vBatch input")],i=all.indexOf(e.target),n=all[i+(e.shiftKey?-1:1)];
+ if(n){n.focus();try{n.select()}catch(x){}}
+});
+document.addEventListener("focusin",e=>{if(e.target.tagName==="INPUT"&&e.target.type==="number")try{e.target.select()}catch(x){}});
+build();calc();initStore().then(loadRecs).then(route);
+</script>
+</body>
+</html>
